@@ -77,7 +77,7 @@ def student_move(env):
    for move in studentEnv.available_moves():
       newBoard, res, done, values = studentEnv.step(move)
       studentEnv.change_player()
-      val[move] = pruning(studentEnv, 1, -math.inf, math.inf, False)
+      val[move] = pruning(studentEnv, 2, -math.inf, math.inf, False)
       studentEnv.reset(env.board)
    
    print(val)
@@ -86,8 +86,6 @@ def student_move(env):
 
 def pruning(studentEnv, depth, alpha, beta, isMax):
    backupBoard = studentEnv.board
-   if studentEnv.is_win_state():
-      return math.inf
    if depth == 0:
       return evaluate(studentEnv, isMax)
    if isMax:
@@ -118,25 +116,44 @@ def pruning(studentEnv, depth, alpha, beta, isMax):
 def evaluate(studentEnv: ConnectFourEnv, isMax: bool):
    board = studentEnv.board
    value = 0
-   foundThree = 0
+   inARow = 0
    if isMax: 
       player = 1 
    else: 
       player = -1
    if env.is_win_state():
-      return math.inf
+      value += 5
    # Vertical check
    for row in np.transpose(board):
+      currentplayer = 0
       for cell in np.flip(row):
-         if cell == player:
-            foundThree +=1
-      value += 2*foundThree
+         if cell == currentplayer:
+            inARow +=1
+         elif cell == -currentplayer:
+            currentplayer = cell
+            inARow = 0
+      if currentplayer == -1:
+         inARow = -inARow
+      value += inARow
+   inARow = 0
    # Horizontal check
    for horizontalrow in board:
+      currentplayer = 0
       for horizontalcell in horizontalrow:
-         if horizontalcell == player:
-            foundThree +=1
-      value += 2*foundThree
+         if horizontalcell == currentplayer:
+            inARow +=1
+         elif horizontalcell == -currentplayer:
+            currentplayer = cell
+            inARow = 0
+      if currentplayer == -1:
+         inARow = -inARow
+      value += inARow
+   # Diagonal 
+   #for dx in range(-1,2,2):
+   #   for dy in range(-1,2,2):
+
+   # Try to steer the plays towards the middle of the board
+
    return value
 
 def checkLimits(value, height):
