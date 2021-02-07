@@ -5,6 +5,7 @@ import numpy as np
 import math
 from node import Node
 from gym_connect_four import ConnectFourEnv
+import copy
 
 env: ConnectFourEnv = gym.make("ConnectFour-v0")
 
@@ -64,103 +65,138 @@ def student_move(env):
    The function should return a move from 0-6
    """
    # Create the tree structure from the existing moves:
+   board = copy.deepcopy(env).board
+   choice = pruning(board, 4, -math.inf, math.inf, True)
    
-   '''children = node.getChildren(True)
-    for index, child in enumerate(children):
-      val[index] = pruning(child, 4, math.inf, -math.inf, False)
-   # print(val)
-   # val = pruning(node, 4, math.inf, -math.inf, True)
-   print("Value found: {0}".format(val))'''
-   studentEnv: ConnectFourEnv = gym.make("ConnectFour-v0")
-   studentEnv.reset(env.board)
-   val = [0,0,0,0,0,0,0]
-   for move in studentEnv.available_moves():
-      newBoard, res, done, values = studentEnv.step(move)
-      studentEnv.change_player()
-      val[move] = pruning(studentEnv, 2, -math.inf, math.inf, False)
-      studentEnv.reset(env.board)
-   
-   print(val)
+   print(choice)
    # Call alpha beta pruning algorithm on the root node:
-   return val.index(np.max(val))
+   return choice[0]
 
-def pruning(studentEnv, depth, alpha, beta, isMax):
-   backupBoard = studentEnv.board
-   if depth == 0:
-      return evaluate(studentEnv, isMax)
+def pruning(board, depth, alpha, beta, isMax):
+   if depth == 0 or isWinningMove(board, False) or isWinningMove(board, True):
+      return evaluate(board, isMax)
    if isMax:
-      value = -math.inf
-      # for child in node.getChildren(isMax):
-      for move in studentEnv.available_moves():
-         studentEnv.change_player()
-         child, res, done, values = studentEnv.step(move)
-         value = maxValue(value, pruning(studentEnv, depth-1, alpha, beta, False))
-         alpha = maxValue(alpha, value)
-         studentEnv.reset(backupBoard)
+      value = [0,0,0,0,0,0,0]
+      bestChoiceMax = [-2, -math.inf]
+      for move in get_valid_locations(board):
+         newBoard = board.copy()
+         play(newBoard, move, isMax)
+         bestChoiceMax = [move, maxValue(bestChoiceMax[1], pruning(newBoard, depth-1, alpha, beta, False)[1])]
+         value[move] = bestChoiceMax[1]
+         alpha = maxValue(alpha, bestChoiceMax[1])
          if alpha >= beta:
             break
-      return value
+      return bestChoiceMax
    else:
-      value = math.inf
-      studentEnv.change_player()
-      for move in studentEnv.available_moves():
-         child, res, done, values = studentEnv.step(move)
-         value = minValue(value, pruning(studentEnv, depth-1, alpha, beta, True))
-         beta = minValue(beta, value)
-         studentEnv.reset(backupBoard)
-         studentEnv.change_player()
+      value = [0,0,0,0,0,0,0]
+      bestChoiceMin = [-2, math.inf]
+      for move in get_valid_locations(board):
+         newBoard = board.copy()
+         play(newBoard, move, isMax)
+         bestChoiceMin = [move, minValue(bestChoiceMin[1], pruning(newBoard, depth-1, alpha, beta, True)[1])]
+         value[move] = bestChoiceMin[1]
+         beta = minValue(beta, bestChoiceMin[1])
          if beta <= alpha:
             break
-      return value
+      return bestChoiceMin
 
-def evaluate(studentEnv: ConnectFourEnv, isMax: bool):
-   board = studentEnv.board
-   value = 0
-   inARow = 0
+def play(board, col:int, isMax:bool):
+   for row in range(5, -1, -1):
+      if board[row,col] == 0:
+         if isMax:
+            board[row,col] = 1
+            break
+         else:
+            board[row,col] = -1
+            break
+   return board
+   
+
+def is_valid_location(board, col: int): 
+    return board[0][col] == 0
+ 
+def get_valid_locations(board):
+    valid_locations = []
+    for col in range(7):
+        if is_valid_location(board, col):
+            valid_locations.append(col)
+    return valid_locations
+
+def evaluate(board, isMax: bool):
+   board, inARow = board, 0
+   player = 0
    if isMax: 
-      player = 1 
-   else: 
+      player = 1
+   else:
       player = -1
-   if env.is_win_state():
-      value += 5
+
    # Vertical check
-   for row in np.transpose(board):
-      currentplayer = 0
-      for cell in np.flip(row):
-         if cell == currentplayer:
-            inARow +=1
-         elif cell == -currentplayer:
-            currentplayer = cell
-            inARow = 0
-      if currentplayer == -1:
-         inARow = -inARow
-      value += inARow
-   inARow = 0
+   for row in np.flip(np.transpose(board)):
+      for indexX, cell in enumerate(row):
+         if indexX < 3:
+            currentSet = [row[indexX], row[indexX+1], row[indexX+2], row[indexX+3]]
+            inARow += findInARow(currentSet, isMax)
+
    # Horizontal check
    for horizontalrow in board:
-      currentplayer = 0
-      for horizontalcell in horizontalrow:
-         if horizontalcell == currentplayer:
-            inARow +=1
-         elif horizontalcell == -currentplayer:
-            currentplayer = cell
-            inARow = 0
-      if currentplayer == -1:
-         inARow = -inARow
-      value += inARow
+      for indexX, horizontalcell in enumerate(horizontalrow):
+         if indexX < 4:
+            currentSet = [horizontalrow[indexX], horizontalrow[indexX+1], horizontalrow[indexX+2], horizontalrow[indexX+3]]
+            inARow += findInARow(currentSet, isMax)
+
    # Diagonal 
-   #for dx in range(-1,2,2):
-   #   for dy in range(-1,2,2):
+   for indexY, diagrow in enumerate(board):
+      for indexX, diagcell in enumerate(diagrow):
+         if indexY < 3 and indexX < 4:
+            currentSet= [board[indexY, indexX], board[indexY+1, indexX+1], board[indexY+2, indexX+2], board[indexY+3, indexX+3]]
+            inARow +=findInARow(currentSet, isMax)
+         if indexY < 3 and indexX > 2:
+            currentSet= [board[indexY, indexX], board[indexY+1, indexX-1], board[indexY+2, indexX-2], board[indexY+3, indexX-3]]
+            inARow +=findInARow(currentSet, isMax)
+   
+   # Points for starting in the beginning
+   for col in range(5):
+      if board[3,col] == player:
 
-   # Try to steer the plays towards the middle of the board
+         inARow += 1
+   
+   return [-3, inARow]
 
-   return value
+def findInARow(row, isMax):
+   if isMax:
+      player = 1
+   else: 
+      player = -1
+   
+   ownSlots, opponentSlots, emptySlots, score = 0,0,0,0
+   
+   for slot in row:
+      if slot == player:
+         ownSlots += 1
+      elif slot == -player:
+         opponentSlots +=1
+      else:
+         emptySlots += 1
 
-def checkLimits(value, height):
-   if height:
-      return value <= 5 and value >= 0
-   else:
-      return value <= 6 and value >= 0
+   if ownSlots == 4:
+      # Winning move!
+      score += 500001
+   elif ownSlots == 3 and emptySlots == 1:
+      #Three in a row!
+      score += 5000
+   elif ownSlots == 2 and emptySlots == 2:
+      # Two in a row (ish)
+      score += 500
+   elif opponentSlots == 2 and emptySlots == 2:
+      # Opponent two in a row - block!
+      score -= 501
+   elif opponentSlots == 3 and emptySlots == 1:
+      # Opponent three in a row - block!
+      score -= 5001
+   elif opponentSlots == 4:
+      # Opponent four in a row
+      score -= 500000
+   return score
 
 def maxValue(value, other):
    if other > value:
@@ -172,6 +208,41 @@ def minValue(value, other):
       return other
    return value
 
+def isWinningMove(board, isMax):
+
+   # Vertical check
+   for row in np.transpose(board):
+      for indexX, cell in enumerate(np.flip(row)):
+         if indexX < 3:
+            currentSet = [row[indexX], row[indexX+1], row[indexX+2], row[indexX+3]]
+            inARow = findInARow(currentSet, isMax)
+            if inARow == 500001:
+               return True
+
+   # Horizontal check
+   for horizontalrow in board:
+      for indexX, horizontalcell in enumerate(horizontalrow):
+         if indexX < 4:
+            currentSet = [horizontalrow[indexX], horizontalrow[indexX+1], horizontalrow[indexX+2], horizontalrow[indexX+3]]
+            inARow = findInARow(currentSet, isMax)
+            if inARow == 500001:
+               return True
+
+   # Diagonal 
+   for indexY, diagrow in enumerate(board):
+      for indexX, diagcell in enumerate(diagrow):
+         if indexY < 3 and indexX < 4:
+            currentSet= [board[indexY, indexX], board[indexY+1, indexX+1], board[indexY+2, indexX+2], board[indexY+3, indexX+3]]
+            inARow =findInARow(currentSet, isMax)
+            if inARow == 500001:
+               return True
+         if indexY < 3 and indexX > 2:
+            currentSet= [board[indexY, indexX], board[indexY+1, indexX-1], board[indexY+2, indexX-2], board[indexY+3, indexX-3]]
+            inARow =findInARow(currentSet, isMax)
+            if inARow == 500001:
+               return True
+   return False
+   
 def play_game(vs_server = False):
    """
    The reward for a game is as follows. You get a
@@ -196,6 +267,7 @@ def play_game(vs_server = False):
       print(res.json()['msg'])
       botmove = res.json()['botmove']
       state = np.array(res.json()['state'])
+      env.reset(state)
    else:
       # reset game to starting state
       env.reset(board=None)
@@ -217,9 +289,9 @@ def play_game(vs_server = False):
    while not done:
       # Select your move
       stmove = student_move(env) # TODO: change input here
-
       # make both student and bot/server moves
       if vs_server:
+         env.step(stmove)
          # Send your move to server and get response
          res = call_server(stmove)
          print(res.json()['msg'])
@@ -228,6 +300,7 @@ def play_game(vs_server = False):
          result = res.json()['result']
          botmove = res.json()['botmove']
          state = np.array(res.json()['state'])
+         env.reset(state)
       else:
          if student_gets_move:
             # Execute your move
@@ -270,7 +343,7 @@ def play_game(vs_server = False):
       print()
 
 def main():
-   play_game(vs_server = False)
+   play_game(vs_server = True)
    # TODO: Change vs_server to True when you are ready to play against the server
    # the results of your games there will be logged
 
