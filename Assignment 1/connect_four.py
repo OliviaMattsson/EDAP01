@@ -57,47 +57,49 @@ def opponents_move(env):
    env.change_player() # change back to student before returning
    return state, reward, done
 
-def student_move(env):
-   """
-   TODO: Implement your min-max alpha-beta pruning algorithm here.
-   Give it whatever input arguments you think are necessary
-   (and change where it is called).
-   The function should return a move from 0-6
-   """
+def student_move(state):
    # Create the tree structure from the existing moves:
-   board = copy.deepcopy(env).board
-   choice = pruning(board, 4, -math.inf, math.inf, True)
+   board = copy.deepcopy(state)
+   # print(board)
+   choice = pruning(board, 5, -math.inf, math.inf, True)
    
    print(choice)
    # Call alpha beta pruning algorithm on the root node:
    return choice[0]
 
 def pruning(board, depth, alpha, beta, isMax):
-   if depth == 0 or isWinningMove(board, False) or isWinningMove(board, True):
-      return evaluate(board, isMax)
+   # print("Checking at depth {0} for player {1}".format(depth, isMax))
+   if depth == 0 or isWinningMove(board, isMax) or isWinningMove(board, not isMax):
+      return evaluate(board, True)
    if isMax:
       value = [0,0,0,0,0,0,0]
       bestChoiceMax = [-2, -math.inf]
       for move in get_valid_locations(board):
-         newBoard = board.copy()
+         newBoard = copy.deepcopy(board)
          play(newBoard, move, isMax)
-         bestChoiceMax = [move, maxValue(bestChoiceMax[1], pruning(newBoard, depth-1, alpha, beta, False)[1])]
+         newChoice = pruning(newBoard, depth-1, alpha, beta, not isMax)[1]
+         if newChoice > bestChoiceMax[1]:
+            bestChoiceMax = [move, newChoice]
          value[move] = bestChoiceMax[1]
          alpha = maxValue(alpha, bestChoiceMax[1])
          if alpha >= beta:
             break
+      # print(value)
       return bestChoiceMax
    else:
       value = [0,0,0,0,0,0,0]
       bestChoiceMin = [-2, math.inf]
       for move in get_valid_locations(board):
-         newBoard = board.copy()
+         newBoard =  copy.deepcopy(board)
          play(newBoard, move, isMax)
-         bestChoiceMin = [move, minValue(bestChoiceMin[1], pruning(newBoard, depth-1, alpha, beta, True)[1])]
+         newChoice = pruning(newBoard, depth-1, alpha, beta, not isMax)[1]
+         if newChoice < bestChoiceMin[1]:
+            bestChoiceMin = [move, newChoice]
          value[move] = bestChoiceMin[1]
          beta = minValue(beta, bestChoiceMin[1])
          if beta <= alpha:
             break
+      # print(value)
       return bestChoiceMin
 
 def play(board, col:int, isMax:bool):
@@ -155,11 +157,12 @@ def evaluate(board, isMax: bool):
             inARow +=findInARow(currentSet, isMax)
    
    # Points for starting in the beginning
-   for col in range(5):
-      if board[3,col] == player:
-
+   for row in range(6):
+      if board[row,3] == player:
+         
          inARow += 1
    
+   # print("Board: \n {0} \n evaluated to: {1}".format(board, inARow))
    return [-3, inARow]
 
 def findInARow(row, isMax):
@@ -173,7 +176,7 @@ def findInARow(row, isMax):
    for slot in row:
       if slot == player:
          ownSlots += 1
-      elif slot == -player:
+      elif slot == player*-1:
          opponentSlots +=1
       else:
          emptySlots += 1
@@ -288,7 +291,7 @@ def play_game(vs_server = False):
    done = False
    while not done:
       # Select your move
-      stmove = student_move(env) # TODO: change input here
+      stmove = student_move(state) # TODO: change input here
       # make both student and bot/server moves
       if vs_server:
          env.step(stmove)
