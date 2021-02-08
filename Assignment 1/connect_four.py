@@ -3,7 +3,6 @@ import random
 import requests
 import numpy as np
 import math
-from node import Node
 from gym_connect_four import ConnectFourEnv
 import copy
 
@@ -58,51 +57,55 @@ def opponents_move(env):
    return state, reward, done
 
 def student_move(state):
-   # Create the tree structure from the existing moves:
+   # Copies over the board of the current game state
    board = copy.deepcopy(state)
-   # print(board)
-   choice = pruning(board, 5, -math.inf, math.inf, True)
-   
-   print(choice)
-   # Call alpha beta pruning algorithm on the root node:
+   # Call minimax algorithm on the root node:
+   choice = minimax(board, 5, -math.inf, math.inf, True)
    return choice[0]
 
-def pruning(board, depth, alpha, beta, isMax):
-   # print("Checking at depth {0} for player {1}".format(depth, isMax))
+def minimax(board, depth, alpha, beta, isMax):
+   """
+   Performs the minimax algorithm on the specified board. 
+   Returns: The value of the board, from the perspective of the maximizing player.
+   """
+   # If we are at depth 0 or it is a winning move for one of the players, evaluate the score
    if depth == 0 or isWinningMove(board, isMax) or isWinningMove(board, not isMax):
-      return evaluate(board, True)
+      return evaluate(board)
    if isMax:
-      value = [0,0,0,0,0,0,0]
-      bestChoiceMax = [-2, -math.inf]
-      for move in get_valid_locations(board):
+      # Keeps track of the best score, initializes as the worst move possible
+      bestChoiceMax = [-1, -math.inf]
+      for move in get_valid_moves(board):
+         # Tries the new move
          newBoard = copy.deepcopy(board)
          play(newBoard, move, isMax)
-         newChoice = pruning(newBoard, depth-1, alpha, beta, not isMax)[1]
+         newChoice = minimax(newBoard, depth-1, alpha, beta, not isMax)[1]
+         # If the new choice is better than the current best score, then save that move instead.
          if newChoice > bestChoiceMax[1]:
             bestChoiceMax = [move, newChoice]
-         value[move] = bestChoiceMax[1]
          alpha = maxValue(alpha, bestChoiceMax[1])
          if alpha >= beta:
             break
-      # print(value)
       return bestChoiceMax
    else:
-      value = [0,0,0,0,0,0,0]
-      bestChoiceMin = [-2, math.inf]
-      for move in get_valid_locations(board):
+      # Keeps track of the best score, initializes as the worst move possible
+      bestChoiceMin = [-1, math.inf]
+      for move in get_valid_moves(board):
+         # Tries the new move
          newBoard =  copy.deepcopy(board)
          play(newBoard, move, isMax)
-         newChoice = pruning(newBoard, depth-1, alpha, beta, not isMax)[1]
+         newChoice = minimax(newBoard, depth-1, alpha, beta, not isMax)[1]
+         # If the new choice is better than the current best score, then save that move instead.
          if newChoice < bestChoiceMin[1]:
             bestChoiceMin = [move, newChoice]
-         value[move] = bestChoiceMin[1]
          beta = minValue(beta, bestChoiceMin[1])
          if beta <= alpha:
             break
-      # print(value)
       return bestChoiceMin
 
 def play(board, col:int, isMax:bool):
+   """
+   Plays the move in column 'col' on the board 'board' for the player 'isMax'. 
+   """
    for row in range(5, -1, -1):
       if board[row,col] == 0:
          if isMax:
@@ -114,63 +117,68 @@ def play(board, col:int, isMax:bool):
    return board
    
 
-def is_valid_location(board, col: int): 
-    return board[0][col] == 0
- 
-def get_valid_locations(board):
-    valid_locations = []
-    for col in range(7):
-        if is_valid_location(board, col):
-            valid_locations.append(col)
-    return valid_locations
+def is_valid_move(board, col: int): 
+   """
+   Returns true if the specificed column is playable, otherwise false.
+   """
+   return board[0][col] == 0
 
-def evaluate(board, isMax: bool):
+def get_valid_moves(board):
+   """
+   Retrieves all of the playable columns on the board 'board'.
+   """
+   valid_moves = []
+   for col in range(7):
+      if is_valid_move(board, col):
+         valid_moves.append(col)
+   return valid_moves
+
+def evaluate(board):
+   """
+   Evaluates the score of the current board. 
+   Returns: A set of the value of the board and an illegal move -1.
+   """
    board, inARow = board, 0
-   player = 0
-   if isMax: 
-      player = 1
-   else:
-      player = -1
+   player = 1
 
    # Vertical check
    for row in np.flip(np.transpose(board)):
       for indexX, cell in enumerate(row):
          if indexX < 3:
             currentSet = [row[indexX], row[indexX+1], row[indexX+2], row[indexX+3]]
-            inARow += findInARow(currentSet, isMax)
+            inARow += findInARow(currentSet)
 
    # Horizontal check
    for horizontalrow in board:
       for indexX, horizontalcell in enumerate(horizontalrow):
          if indexX < 4:
             currentSet = [horizontalrow[indexX], horizontalrow[indexX+1], horizontalrow[indexX+2], horizontalrow[indexX+3]]
-            inARow += findInARow(currentSet, isMax)
+            inARow += findInARow(currentSet)
 
    # Diagonal 
    for indexY, diagrow in enumerate(board):
       for indexX, diagcell in enumerate(diagrow):
          if indexY < 3 and indexX < 4:
             currentSet= [board[indexY, indexX], board[indexY+1, indexX+1], board[indexY+2, indexX+2], board[indexY+3, indexX+3]]
-            inARow +=findInARow(currentSet, isMax)
+            inARow += findInARow(currentSet)
          if indexY < 3 and indexX > 2:
             currentSet= [board[indexY, indexX], board[indexY+1, indexX-1], board[indexY+2, indexX-2], board[indexY+3, indexX-3]]
-            inARow +=findInARow(currentSet, isMax)
+            inARow += findInARow(currentSet)
    
    # Points for starting in the beginning
    for row in range(6):
       if board[row,3] == player:
-         
          inARow += 1
    
-   # print("Board: \n {0} \n evaluated to: {1}".format(board, inARow))
-   return [-3, inARow]
+   return [-1, inARow]
 
-def findInARow(row, isMax):
-   if isMax:
-      player = 1
-   else: 
-      player = -1
-   
+def findInARow(row):
+   """
+   Takes a row of 4 cells and finds cells in a row.
+   Returns: the score of the row. A positive score for when the maximizing player have two, three or four in
+   a row, and a negative if the minimizing player have the same. 
+   """
+   player = 1   
    ownSlots, opponentSlots, emptySlots, score = 0,0,0,0
    
    for slot in row:
@@ -183,22 +191,22 @@ def findInARow(row, isMax):
 
    if ownSlots == 4:
       # Winning move!
-      score += 500001
+      score += 100001
    elif ownSlots == 3 and emptySlots == 1:
       #Three in a row!
-      score += 5000
+      score += 1000
    elif ownSlots == 2 and emptySlots == 2:
       # Two in a row (ish)
-      score += 500
+      score += 100
    elif opponentSlots == 2 and emptySlots == 2:
       # Opponent two in a row - block!
-      score -= 501
+      score -= 101
    elif opponentSlots == 3 and emptySlots == 1:
-      # Opponent three in a row - block!
-      score -= 5001
+      # Opponent three in a row - block! 
+      score -= 1001
    elif opponentSlots == 4:
       # Opponent four in a row
-      score -= 500000
+      score -= 100000
    return score
 
 def maxValue(value, other):
@@ -212,14 +220,21 @@ def minValue(value, other):
    return value
 
 def isWinningMove(board, isMax):
-
+   """
+   Checks if the 'isMax' player have a winning move on the current board.
+   Returns: True if such a move exists, otherwise false
+   """
+   if isMax:
+      winningScore = 100001
+   else:
+      winningScore = 100000
    # Vertical check
    for row in np.transpose(board):
       for indexX, cell in enumerate(np.flip(row)):
          if indexX < 3:
             currentSet = [row[indexX], row[indexX+1], row[indexX+2], row[indexX+3]]
-            inARow = findInARow(currentSet, isMax)
-            if inARow == 500001:
+            inARow = findInARow(currentSet)
+            if inARow == winningScore:
                return True
 
    # Horizontal check
@@ -227,8 +242,8 @@ def isWinningMove(board, isMax):
       for indexX, horizontalcell in enumerate(horizontalrow):
          if indexX < 4:
             currentSet = [horizontalrow[indexX], horizontalrow[indexX+1], horizontalrow[indexX+2], horizontalrow[indexX+3]]
-            inARow = findInARow(currentSet, isMax)
-            if inARow == 500001:
+            inARow = findInARow(currentSet)
+            if inARow == winningScore:
                return True
 
    # Diagonal 
@@ -236,13 +251,13 @@ def isWinningMove(board, isMax):
       for indexX, diagcell in enumerate(diagrow):
          if indexY < 3 and indexX < 4:
             currentSet= [board[indexY, indexX], board[indexY+1, indexX+1], board[indexY+2, indexX+2], board[indexY+3, indexX+3]]
-            inARow =findInARow(currentSet, isMax)
-            if inARow == 500001:
+            inARow =findInARow(currentSet)
+            if inARow == winningScore:
                return True
          if indexY < 3 and indexX > 2:
             currentSet= [board[indexY, indexX], board[indexY+1, indexX-1], board[indexY+2, indexX-2], board[indexY+3, indexX-3]]
-            inARow =findInARow(currentSet, isMax)
-            if inARow == 500001:
+            inARow =findInARow(currentSet)
+            if inARow == winningScore:
                return True
    return False
    
